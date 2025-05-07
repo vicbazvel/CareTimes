@@ -1,0 +1,7 @@
+/home/dit/CareTimes/src/main/java/caretimes/CareTimesApplication.java
+/home/dit/CareTimes/src/main/java/caretimes/model/Paciente.java
+/home/dit/CareTimes/src/main/java/caretimes/model/Medico.java
+/home/dit/CareTimes/src/main/java/caretimes/service/CitaService.java
+/home/dit/CareTimes/src/main/java/caretimes/repository/CitaRepository.java
+/home/dit/CareTimes/src/main/java/caretimes/controller/CitaController.java
+/home/dit/CareTimes/src/main/java/caretimes/model/Cita.java
