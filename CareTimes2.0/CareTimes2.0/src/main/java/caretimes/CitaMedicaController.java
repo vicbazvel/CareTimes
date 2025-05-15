@@ -1,0 +1,254 @@
+package citas;
+
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+
+@RestController
+public class CitaMedicaController {
+
+    private static final String DB_URL = "jdbc:postgresql://localhost:5432/dit";
+    private static final String USER = "dit";
+    private static final String PASS = "dit";
+
+       // --------- CITAS MÉDICAS ---------
+
+    @PostMapping("/cita")
+	public ResponseEntity<Map<String, String>> crearCita(@RequestBody CitaMedica cita) {
+    Map<String, String> respuesta = new HashMap<>();
+    try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+         Statement st = conn.createStatement()) {
+
+        int result = st.executeUpdate("INSERT INTO citas (paciente, doctor, fecha, hora, motivo) VALUES (" +
+                "'" + cita.getPaciente() + "', '" + cita.getDoctor() + "', '" + cita.getFecha() + "', '" +
+                cita.getHora() + "', '" + cita.getMotivo() + "')");
+
+        if (result > 0) {
+            respuesta.put("mensaje", "Cita creada");
+            return new ResponseEntity<>(respuesta, HttpStatus.CREATED);
+        } else {
+            respuesta.put("mensaje", "Error al crear cita");
+            return new ResponseEntity<>(respuesta, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        respuesta.put("mensaje", "Error interno");
+        return new ResponseEntity<>(respuesta, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+
+    @GetMapping("/cita/{id}")
+    public ResponseEntity<CitaMedica> obtenerCita(@PathVariable long id) {
+        CitaMedica cita = null;
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM citas WHERE id = " + id)) {
+
+            if (rs.next()) {
+                cita = new CitaMedica(
+                    rs.getLong("id"),
+                    rs.getString("paciente"),
+                    rs.getString("doctor"),
+                    rs.getString("fecha"),
+                    rs.getString("hora"),
+                    rs.getString("motivo")
+                );
+                return new ResponseEntity<>(cita, HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PutMapping("/cita/{id}")
+	public ResponseEntity<Map<String, String>> actualizarCita(@PathVariable long id, @RequestBody CitaMedica cita) {
+    Map<String, String> respuesta = new HashMap<>();
+    try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+         Statement st = conn.createStatement()) {
+
+        int result = st.executeUpdate("UPDATE citas SET " +
+            "paciente = '" + cita.getPaciente() + "', " +
+            "doctor = '" + cita.getDoctor() + "', " +
+            "fecha = '" + cita.getFecha() + "', " +
+            "hora = '" + cita.getHora() + "', " +
+            "motivo = '" + cita.getMotivo() + "' WHERE id = " + id);
+
+        if (result > 0) {
+            respuesta.put("mensaje", "Cita actualizada");
+            return new ResponseEntity<>(respuesta, HttpStatus.OK);
+        } else {
+            respuesta.put("mensaje", "No se encontró la cita");
+            return new ResponseEntity<>(respuesta, HttpStatus.NOT_FOUND);
+        }
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        respuesta.put("mensaje", "Error interno");
+        return new ResponseEntity<>(respuesta, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+
+    @DeleteMapping("/cita/{id}")
+	public ResponseEntity<Map<String, String>> eliminarCita(@PathVariable long id) {
+    Map<String, String> respuesta = new HashMap<>();
+    try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+         Statement st = conn.createStatement()) {
+
+        int result = st.executeUpdate("DELETE FROM citas WHERE id = " + id);
+
+        if (result > 0) {
+            respuesta.put("mensaje", "Cita eliminada");
+            return new ResponseEntity<>(respuesta, HttpStatus.OK);
+        } else {
+            respuesta.put("mensaje", "No se encontró la cita");
+            return new ResponseEntity<>(respuesta, HttpStatus.NOT_FOUND);
+        }
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        respuesta.put("mensaje", "Error interno");
+        return new ResponseEntity<>(respuesta, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+
+    // --------- USUARIOS (Doctores / Pacientes) ---------
+
+     @PostMapping("/usuario")
+	public ResponseEntity<Map<String, String>> crearUsuario(@RequestBody Usuario usuario) {
+    Map<String, String> respuesta = new HashMap<>();
+    try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)){
+            // Verificar si ya existe un usuario con ese nombre
+    try (PreparedStatement check = conn.prepareStatement("SELECT COUNT(*) FROM usuarios WHERE nombre = ?")) {
+        check.setString(1, usuario.getNombre());
+        ResultSet rs = check.executeQuery();
+        if (rs.next() && rs.getInt(1) > 0) {
+            respuesta.put("mensaje", "El usuario ya está registrado");
+            return new ResponseEntity<>(respuesta, HttpStatus.CONFLICT); // 409
+        }
+    }
+
+    try (PreparedStatement ps = conn.prepareStatement(
+            "INSERT INTO usuarios (nombre, password, rol) VALUES (?, ?, ?)")) {
+
+        ps.setString(1, usuario.getNombre());
+        ps.setString(2, usuario.getPassword());
+        ps.setString(3, usuario.getRol());
+
+        int result = ps.executeUpdate();
+        if (result > 0) {
+            respuesta.put("mensaje", "Usuario creado correctamente");
+            return new ResponseEntity<>(respuesta, HttpStatus.CREATED);
+        } else {
+            respuesta.put("mensaje", "Error al crear el usuario");
+            return new ResponseEntity<>(respuesta, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+	} catch (SQLException e) {
+		e.printStackTrace();
+		respuesta.put("mensaje", "Error interno");
+		return new ResponseEntity<>(respuesta, HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+}
+
+
+    @GetMapping("/usuarios")
+    public ResponseEntity<List<Usuario>> obtenerUsuariosPorRol(@RequestParam String rol) {
+        List<Usuario> lista = new ArrayList<>();
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement ps = conn.prepareStatement("SELECT * FROM usuarios WHERE rol = ?")) {
+
+            ps.setString(1, rol);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                lista.add(new Usuario(
+                    rs.getLong("id"),
+                    rs.getString("nombre"),
+                    rs.getString("password"),
+                    rs.getString("rol")
+                ));
+            }
+
+            return new ResponseEntity<>(lista, HttpStatus.OK);
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PostMapping("/login")
+	public ResponseEntity<Map<String, String>> login(@RequestBody Usuario usuario) {
+    Map<String, String> respuesta = new HashMap<>();
+    try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+         PreparedStatement ps = conn.prepareStatement(
+             "SELECT * FROM usuarios WHERE nombre = ? AND password = ?")) {
+
+        ps.setString(1, usuario.getNombre());
+        ps.setString(2, usuario.getPassword());
+
+        ResultSet rs = ps.executeQuery();
+
+        if (rs.next()) {
+            respuesta.put("mensaje", "Login exitoso");
+            respuesta.put("rol", rs.getString("rol"));
+            return ResponseEntity.ok(respuesta);
+        } else {
+            respuesta.put("mensaje", "Credenciales incorrectas");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(respuesta);
+        }
+
+    } catch (SQLException e) {
+        e.printStackTrace();
+        respuesta.put("mensaje", "Error interno");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(respuesta);
+    }
+}
+@PutMapping("/usuario/{nombre}")
+public ResponseEntity<Map<String, String>> actualizarUsuario(@PathVariable String nombre, @RequestBody Usuario usuario) {
+Map<String, String> respuesta = new HashMap<>();
+try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+String sql = "UPDATE usuarios SET password = ?, rol = ?, sexo = ?, altura = ?, peso = ?, nacionalidad = ? WHERE nombre = ?";
+try (PreparedStatement ps = conn.prepareStatement(sql)) {
+ps.setString(1, usuario.getPassword());
+ps.setString(2, usuario.getRol());
+ps.setString(3, usuario.getSexo());
+ps.setObject(4, usuario.getAltura());
+ps.setObject(5, usuario.getPeso());
+ps.setString(6, usuario.getNacionalidad());
+ps.setString(7, nombre);
+        int result = ps.executeUpdate();
+
+        if (result > 0) {
+            respuesta.put("mensaje", "Perfil actualizado correctamente");
+            return ResponseEntity.ok(respuesta);
+        } else {
+            respuesta.put("mensaje", "Usuario no encontrado");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(respuesta);
+        }
+    }
+} catch (SQLException e) {
+    e.printStackTrace();
+    respuesta.put("mensaje", "Error interno");
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(respuesta);
+}
+
+}
+}
+
