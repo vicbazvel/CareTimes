@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS citas (
 );
 
 -- Crear tabla persona
-CREATE TABLE persona (
+CREATE TABLE IF NOT EXISTS persona (
 id SERIAL PRIMARY KEY,
 usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
 sexo VARCHAR(20),
