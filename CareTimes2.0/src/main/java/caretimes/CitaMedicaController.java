@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.HashMap;
 
 @RestController
-@RequestMapping("/citas")
 public class CitaMedicaController {
 
 private static final String DB_URL = "jdbc:postgresql://localhost:5432/dit";
@@ -20,17 +19,28 @@ private static final String PASS = "dit";
 
 // --------- CITAS MÉDICAS ---------
 
-@PostMapping("")
+@PostMapping("/cita")
 public ResponseEntity<Map<String, String>> crearCita(@RequestBody CitaMedica cita) {
     Map<String, String> respuesta = new HashMap<>();
     try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
          PreparedStatement ps = conn.prepareStatement(
-                 "INSERT INTO citas (paciente, especialidad, fecha, hora, motivo) VALUES (?, ?, ?, ?, ?)")) {
+             "INSERT INTO citas (paciente, especialidad, fecha, hora, motivo) VALUES (?, ?, ?, ?, ?)")) {
 
         ps.setString(1, cita.getPaciente());
         ps.setString(2, cita.getEspecialidad());
-        ps.setString(3, cita.getFecha());
-        ps.setString(4, cita.getHora());
+
+        // Convierte la fecha, formato yyyy-MM-dd, correcto según tu app
+        java.sql.Date fechaSql = java.sql.Date.valueOf(cita.getFecha());
+        ps.setDate(3, fechaSql);
+
+        // Asegurarse que hora tiene formato HH:mm:ss (añadir ":00" si solo es HH:mm)
+        String horaStr = cita.getHora();
+        if (horaStr.length() == 5) {  // "HH:mm"
+            horaStr += ":00";
+        }
+        java.sql.Time horaSql = java.sql.Time.valueOf(horaStr);
+        ps.setTime(4, horaSql);
+
         ps.setString(5, cita.getMotivo());
 
         int result = ps.executeUpdate();
@@ -51,12 +61,15 @@ public ResponseEntity<Map<String, String>> crearCita(@RequestBody CitaMedica cit
 }
 
 
-@GetMapping("/paciente")
+
+
+
+@GetMapping("/citas/paciente")
 public ResponseEntity<List<CitaMedica>> obtenerCitasPorPaciente(@RequestParam String paciente) {
     List<CitaMedica> citas = new ArrayList<>();
     try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
         
-        String sql = "SELECT * FROM citas WHERE paciente = ?";
+        String sql = "SELECT c.* FROM citas c INNER JOIN persona p ON c.paciente = p.nombre_completo WHERE p.nombre_completo = ?";
         PreparedStatement ps = conn.prepareStatement(sql);
         ps.setString(1, paciente);
         ResultSet rs = ps.executeQuery();
@@ -85,7 +98,7 @@ public ResponseEntity<List<CitaMedica>> obtenerCitasPorPaciente(@RequestParam St
 
 
 
-@DeleteMapping("/{id}")
+ @DeleteMapping("/citas/{id}")
 public ResponseEntity<Map<String, String>> eliminarCita(@PathVariable long id) {
     Map<String, String> respuesta = new HashMap<>();
     try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
